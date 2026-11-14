@@ -97,7 +97,7 @@ video{width:100%;height:100%;display:block}
 #pv{width:160px;height:90px;object-fit:cover;background:#111;border-radius:7px;display:block}
 #pt{display:block;margin-top:3px;font-variant-numeric:tabular-nums}
 #tip.nov{width:auto;padding:3px 10px}#tip.nov #pv{display:none}
-#ctl .row{gap:2px}
+#ctl .row{gap:2px;flex-wrap:nowrap}
 #ctl button{display:inline-flex;align-items:center;justify-content:center;flex:none;width:38px;height:38px;min-height:0;padding:0;border-radius:50%;background:none;color:#fff}
 #ctl button:hover{background:#ffffff26}
 #ctl #pp{width:42px;height:42px;background:var(--grad);color:#1a1405;margin-right:4px}
@@ -114,7 +114,6 @@ video{width:100%;height:100%;display:block}
 @container ctl (max-width:560px){#ctl #aub{display:none}}
 @container ctl (max-width:460px){#ctl #bk,#ctl #fw{display:none}}
 @container ctl (max-width:400px){#ctl #mt{display:none}#tm{margin:0 6px;font-size:12px}}
-@container ctl (max-width:330px){#ctl #qb{display:none}}
 
 /* settings */
 #set{position:absolute;right:12px;bottom:var(--cb);width:min(360px,calc(100% - 24px));max-height:calc(100% - var(--cb) - 16px);background:var(--panel);color:var(--tx);border:1px solid var(--line);border-radius:16px;display:flex;flex-direction:column;z-index:3;box-shadow:var(--sh)}
@@ -283,7 +282,7 @@ textarea{width:100%;min-height:70px;background:var(--inp);border:1px solid var(-
    <input id="vol" type="range" min="0" max="1" step=".05" value="1" title="Volume">
    <span id="tm">0:00 / 0:00</span><span id="bd" title="Video size"></span><span class="sp"></span>
    <button id="aub" class="chip" title="Audio track (a)" hidden></button>
-   <button id="qb" class="chip" title="Quality">Auto</button><select id="q" hidden><option>Auto</option></select>
+   <button id="qb" title="Quality" aria-label="Quality"></button><select id="q" hidden><option>Auto</option></select>
    <button id="of" title="Open a file from your device"></button>
    <button id="pip" title="Picture in picture (p)"></button>
    <button id="gear" title="Settings"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
@@ -437,7 +436,7 @@ function load(url,t=0,auto=true,type=''){
   hls.on(Hls.Events.MANIFEST_PARSED,(e,d)=>{
    {const c=+S.qstart;if(c){let k=-1;d.levels.forEach((l,i)=>{if(l.height&&l.height<=c)k=i});hls.autoLevelCapping=k}}
    setQ([['Auto',-1],...d.levels.map((l,i)=>[l.height?(l.height>=2160?'4K · ':'')+l.height+'p':Math.round(l.bitrate/1e3)+'k',i]).reverse()],-1);go()});
-  hls.on(Hls.Events.LEVEL_SWITCHED,(e,d)=>{if(q.value==-1){$('#qb').textContent='Auto · '+(hls.levels[d.level].height||'?')+'p';$('#qcur').textContent=$('#qb').textContent}});
+  hls.on(Hls.Events.LEVEL_SWITCHED,(e,d)=>{if(q.value==-1){const n='Auto · '+(hls.levels[d.level].height||'?')+'p';$('#qcur').textContent=n;$('#qb').title='Quality: '+n}});
   hls.on(Hls.Events.AUDIO_TRACKS_UPDATED,audUI);hls.on(Hls.Events.AUDIO_TRACK_SWITCHED,audUI);
   hls.on(Hls.Events.ERROR,(e,d)=>{if(!d.fatal)return;const c=d.response&&d.response.code;
    if(d.type===Hls.ErrorTypes.NETWORK_ERROR&&!c&&hr++<5){say('Connection issue. Retrying…');return hls.startLoad()}
@@ -594,6 +593,7 @@ const I={on:ic(SPK+'<path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 
 const PL=ic('<polygon points="6 4 20 12 6 20 6 4" fill="currentColor"/>'),PA=ic('<rect x="6" y="4" width="4" height="16" fill="currentColor"/><rect x="14" y="4" width="4" height="16" fill="currentColor"/>');
 const IFS=ic('<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>'),IFX=ic('<path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>');
 $('#pip').innerHTML=ic('<rect x="2" y="4" width="20" height="16" rx="2"/><rect x="12" y="12" width="8" height="6" rx="1" fill="currentColor"/>');
+$('#qb').innerHTML=ic('<rect x="2" y="5" width="20" height="14" rx="3"/><path d="M7 9v6M7 12h3M10 9v6"/><path d="M13.5 9H15a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2h-1.5z"/>');
 $('#bk').innerHTML=ic('<path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 3 3 9 9 9"/>');
 $('#fw').innerHTML=ic('<path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/>');
 $('#of').innerHTML=ic('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>');
@@ -653,7 +653,7 @@ if('mediaSession' in navigator){const m=navigator.mediaSession,h=(a,f)=>{try{m.s
  h('nexttrack',()=>pl.length>1&&playIdx(pi+1));h('previoustrack',()=>pl.length>1&&playIdx(pi-1))}
 
 /* ---------- quality menu ---------- */
-function renderQ(){const o=[...q.options];$('#qb').textContent=q.selectedOptions[0]?.text||'Auto';$('#qcur').textContent=$('#qb').textContent;
+function renderQ(){const o=[...q.options],qn=q.selectedOptions[0]?.text||'Auto';$('#qcur').textContent=qn;$('#qb').title='Quality: '+qn;
  el.qm.innerHTML='<div class="mh">Quality</div>'+o.map(x=>`<button data-v="${x.value}"${x.value==q.value?' class="on"':''}>${esc(x.text)}</button>`).join('')+'<button data-add="1">+ Add quality link</button>'}
 function addQ(){const s=prompt('Paste another quality link (direct or player link)');if(!s)return;
  if(hls||dash||!srcs.length)return say('Add quality works with normal video links');
