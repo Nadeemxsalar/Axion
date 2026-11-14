@@ -135,6 +135,7 @@ textarea{min-height:70px;resize:vertical;font-family:Consolas,monospace;font-siz
    <div class="pane" data-p="g">
     <div class="it"><span>Quality<small id="qcur">Auto</small></span><button id="qs">Change</button></div>
     <label class="it"><span>Playback speed</span><select id="sp"></select></label>
+<div class="it"><span>Audio track<small id="acur">Only default</small></span><button id="aud">Change</button></div>
     <label class="it"><span>Start quality<small>For links that offer several qualities</small></span><select data-k="qstart"><option value="0">Highest</option><option value="1080">Up to 1080p</option><option value="720">Up to 720p</option><option value="480">Up to 480p</option></select></label>
     <label class="it"><span>Resume<small>Continue where you stopped</small></span><input type="checkbox" class="tg" data-k="resume"></label>
     <label class="it"><span>Loop video</span><input type="checkbox" class="tg" data-k="loop"></label>
@@ -178,7 +179,7 @@ textarea{min-height:70px;resize:vertical;font-family:Consolas,monospace;font-siz
    <button id="mt" title="Mute (m)"></button>
    <input id="vol" type="range" min="0" max="1" step=".05" value="1" title="Volume">
    <span id="tm">0:00 / 0:00</span><span id="bd" title="Video size"></span><span class="sp"></span>
-   <button id="qb" title="Quality">Auto</button><select id="q" hidden><option>Auto</option></select>
+   <button id="qb" title="Quality">Auto</button><select id="q" hidden><option>Auto</option></select><button id="aub" title="Audio track (a)" hidden style="font-weight:600"></button>
    <button id="of" title="Open a file from your device">Open</button>
    <button id="pip" title="Picture in picture (p)"></button>
    <button id="gear" title="Settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
@@ -225,19 +226,19 @@ function parseLink(s){
  if(o.h)o.q=o.h>=4320?'8K':o.h>=2160?'4K':o.h+'p';
  return o}
 function load(url,t=0,auto=true,type=''){unweb();clearErr();st.classList.add('has');lastType=type;hr=0;
- clearTimeout(wd);wd=setTimeout(()=>{if(!v.readyState&&!st.classList.contains('failed')&&!st.classList.contains('web'))fail('This is taking too long','The video did not start loading within 20 seconds.','The link may be slow, expired or blocked. Try again or open it in a new tab.')},20000);
+ clearTimeout(wd);wd=setTimeout(()=>{if(!v.readyState&&!st.classList.contains('failed')&&!st.classList.contains('web'))fail('This is taking too long','The video did not start loading within a minute.','The link may be slow, expired or blocked. Try again or open it in a new tab.')},60000);
  if(hls){hls.destroy();hls=null}if(dash){dash.reset();dash=null}
  curUrl=url;$('#empty').hidden=true;if(ac&&!/^blob:/.test(url))say('After volume boost, web links may play silent. Reload the page',5000);
- const go=()=>{if(t>5)v.currentTime=t;if(auto)v.play().catch(e=>{if(e&&e.name==='NotAllowedError')say('Tap play to start')})};
+ const go=()=>{if(t>5&&(!isFinite(v.duration)||t<v.duration-15))v.currentTime=t;if(auto)v.play().catch(e=>{if(e&&e.name==='NotAllowedError')say('Tap play to start')})};
  if(/\.m3u8(\?|#|$)/i.test(url)&&window.Hls&&Hls.isSupported()){
-  hls=new Hls({capLevelToPlayerSize:false,maxBufferLength:60,abrEwmaDefaultEstimate:2e7});hls.loadSource(url);hls.attachMedia(v);
+  hls=new Hls({capLevelToPlayerSize:false,maxBufferLength:60,abrEwmaDefaultEstimate:(navigator.connection&&navigator.connection.downlink||25)*8e5});hls.loadSource(url);hls.attachMedia(v);
   hls.on(Hls.Events.MANIFEST_PARSED,(e,d)=>{
    {const c=+S.qstart;if(c){let k=-1;d.levels.forEach((l,i)=>{if(l.height&&l.height<=c)k=i});hls.autoLevelCapping=k}}
    setQ([['Auto',-1],...d.levels.map((l,i)=>[l.height?(l.height>=2160?'4K · ':'')+l.height+'p':Math.round(l.bitrate/1e3)+'k',i]).reverse()],-1);go()});
   hls.on(Hls.Events.LEVEL_SWITCHED,(e,d)=>{if(q.value==-1){$('#qb').textContent='Auto · '+(hls.levels[d.level].height||'?')+'p';$('#qcur').textContent=$('#qb').textContent}});
   hls.on(Hls.Events.ERROR,(e,d)=>{if(!d.fatal)return;const c=d.response&&d.response.code;
-   if(d.type===Hls.ErrorTypes.NETWORK_ERROR&&!c&&hr++<2){say('Connection issue. Retrying…');return hls.startLoad()}
-   if(d.type===Hls.ErrorTypes.MEDIA_ERROR&&hr++<2){say('Recovering playback…');return hls.recoverMediaError()}
+   if(d.type===Hls.ErrorTypes.NETWORK_ERROR&&!c&&hr++<5){say('Connection issue. Retrying…');return hls.startLoad()}
+   if(d.type===Hls.ErrorTypes.MEDIA_ERROR&&hr++<5){say('Recovering playback…');return hls.recoverMediaError()}
    fail(c==401||c==403?'Access denied':c==404?'Stream not found':'Stream error',c?'The server answered with HTTP '+c+'. The link may have expired.':'The stream could not be loaded ('+d.details+').','Try again, or paste a fresh link.')});
  }else if(/\.mpd(\?|#|$)/i.test(url)&&window.dashjs){
   dash=dashjs.MediaPlayer().create();dash.initialize(v,url,auto);
@@ -411,7 +412,7 @@ if('mediaSession' in navigator){const m=navigator.mediaSession,h=(a,f)=>{try{m.s
 const qh=s=>{s=String(s||'');const m=/(?:^|[^\d])(2160|1440|1080|720|576|480|360|240)p/i.exec(s);return m?+m[1]:/\b4k\b|\buhd\b/i.test(s)?2160:/\b8k\b/i.test(s)?4320:0};
 const pickStart=()=>{const p=+S.qstart;if(!p||!srcs.some(s=>s.h))return 0;const i=srcs.findIndex(s=>s.h&&s.h<=p);return i<0?srcs.length-1:i};
 function renderQ(){const o=[...q.options];$('#qb').textContent=q.selectedOptions[0]?.text||'Auto';$('#qcur').textContent=$('#qb').textContent;
- $('#qm').innerHTML='<div class="mh">Quality</div>'+o.map(x=>`<button data-v="${x.value}"${x.value==q.value?' class="on"':''}>${x.text}</button>`).join('')+'<button data-add="1">+ Add quality link</button>'}
+ $('#qm').innerHTML='<div class="mh">Quality</div>'+o.map(x=>`<button data-v="${x.value}"${x.value==q.value?' class="on"':''}>${esc(x.text)}</button>`).join('')+'<button data-add="1">+ Add quality link</button>'}
 function addQ(){const s=prompt('Paste another quality link (direct or player link)');if(!s)return;
  if(hls||dash||!srcs.length)return say('Add quality works with normal video links');
  const c=srcs[+q.value],o=parseLink(s);srcs.push({...o,n:o.q||'Source '+(srcs.length+1),h:o.h||0});srcs.sort((a,b)=>b.h-a.h);
@@ -525,6 +526,79 @@ v.addEventListener('loadedmetadata',()=>clearTimeout(wd));
 $('#qs').onclick=()=>{$('#set').hidden=true;$('#qm').hidden=false};
 $('#pip2').onclick=()=>{$('#set').hidden=true;Promise.resolve(pip()).catch(()=>say('Picture in picture is not available right now'))};
 if(!document.pictureInPictureEnabled)$('#pip2').closest('.it').hidden=true;
+
+/* ===== FIX BLOCK 1: slow net + audio tracks ===== */
+let stalls=0,wt2,sk=null,skT;
+const slowNet=()=>{const c=navigator.connection;return stalls>1||!!(c&&(c.saveData||(c.effectiveType&&c.effectiveType!=='4g')))};
+function esc(s){return String(s).replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';')}
+
+/* seek: bar turant move, asli seek release par ek baar */
+function seekAt(t,hold){const d=v.duration;if(!d||!isFinite(d))return;sk=Math.max(0,Math.min(d,t));
+ $('#prog').style.width=sk/d*100+'%';$('#tm').textContent=fmt(sk)+' / '+fmt(d);
+ clearTimeout(skT);if(!hold)skT=setTimeout(seekGo,350)}
+function seekGo(){clearTimeout(skT);if(sk===null)return;const t=sk;sk=null;v.currentTime=t}
+const seekBy=x=>seekAt((sk===null?v.currentTime:sk)+x);
+const bseek=e=>{const r=$('#bar').getBoundingClientRect(),d=v.duration;if(d&&isFinite(d))seekAt(Math.max(0,Math.min(1,(e.clientX-r.left)/r.width))*d,1)};
+$('#bar').onpointerdown=e=>{drag=1;bseek(e);tipAt(e);
+ const mv=e=>{bseek(e);tipAt(e)},up=e=>{drag=0;seekGo();removeEventListener('pointermove',mv);removeEventListener('pointerup',up);removeEventListener('pointercancel',up);if(e.pointerType!=='mouse'||!$('#bar').matches(':hover'))hideTip()};
+ addEventListener('pointermove',mv);addEventListener('pointerup',up);addEventListener('pointercancel',up)};
+{const o=v.ontimeupdate;v.ontimeupdate=()=>{if(sk===null)o()}}
+$('#bk').onclick=()=>seekBy(-S.step);$('#fw').onclick=()=>seekBy(+S.step);
+v.ondblclick=e=>{const r=v.getBoundingClientRect(),x=(e.clientX-r.left)/r.width;x<.3?(seekBy(-S.step),say('−'+S.step+'s')):x>.7?(seekBy(+S.step),say('+'+S.step+'s')):fs()};
+addEventListener('keydown',e=>{
+ if(e.ctrlKey||e.metaKey||e.altKey||(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)&&e.target.type!=='range'))return;
+ const f={ArrowRight:()=>seekBy(5),ArrowLeft:()=>seekBy(-5),l:()=>seekBy(+S.step),j:()=>seekBy(-S.step),a:cycAud}[e.key];
+ if(f){e.preventDefault();e.stopPropagation();f()}},true);
+
+/* buffer bar, spinner, slow-net message, auto retry */
+v.onprogress=()=>{const b=v.buffered,d=v.duration;if(!d||!isFinite(d))return;let e=0;
+ for(let i=0;i<b.length;i++)if(v.currentTime>=b.start(i)-.5&&v.currentTime<=b.end(i)+1)e=b.end(i);
+ $('#buf').style.width=e/d*100+'%'};
+['timeupdate','seeked'].forEach(n=>v.addEventListener(n,v.onprogress));
+v.addEventListener('waiting',()=>{if(v.currentTime>0)stalls++;clearTimeout(wt2);
+ wt2=setTimeout(()=>{if(v.readyState<3&&!v.paused)say('Net slow hai, buffering…',3000)},4000)});
+['playing','canplay','pause','seeked'].forEach(n=>v.addEventListener(n,()=>clearTimeout(wt2)));
+v.addEventListener('seeking',()=>{$('#spin').hidden=false;v.ontimeupdate()});
+v.addEventListener('seeked',()=>$('#spin').hidden=true);
+v.addEventListener('emptied',()=>{sk=null;clearTimeout(skT)});
+const oer=v.onerror;let nr=0;
+v.onerror=()=>{if(v.error&&v.error.code===2&&/^https?:/.test(curUrl)&&nr++<3){say('Net issue, retrying…',3000);const t=v.currentTime;return setTimeout(()=>load(curUrl,t,true,lastType),2500)}oer()};
+v.addEventListener('playing',()=>{nr=0;hr=0});
+
+/* slow net par extra downloads band (thumbnail preview, quality probe) */
+const fsib=findSiblings;findSiblings=s=>{if(slowNet())return;v.addEventListener('canplay',()=>fsib(s),{once:true})};
+const pvl=pvLoad;pvLoad=()=>{if(/^https?:/.test(curUrl)&&slowNet()){pvU=curUrl;$('#tip').classList.add('nov');return}pvl()};
+
+/* audio tracks (HLS, DASH, Safari / Chrome flag) */
+const LG={hin:'Hindi',eng:'English',tam:'Tamil',tel:'Telugu',mal:'Malayalam',kan:'Kannada',ben:'Bengali',mar:'Marathi',pan:'Punjabi',urd:'Urdu',jpn:'Japanese',kor:'Korean',spa:'Spanish',fra:'French',fre:'French',deu:'German',ger:'German',rus:'Russian',zho:'Chinese',chi:'Chinese'};
+function audName(a,i){let[l,g]=a||[];l=(l||'').trim();g=(g||'').trim().toLowerCase();let n='';
+ if(g&&g!=='und'){n=LG[g]||'';if(!n)try{n=new Intl.DisplayNames(['en'],{type:'language'}).of(g)||''}catch{}if(n.toLowerCase()===g)n=''}
+ return l&&n&&!l.toLowerCase().includes(n.toLowerCase())?n+' · '+l:l||n||'Track '+(i+1)}
+function audSrc(){
+ if(hls&&hls.audioTracks&&hls.audioTracks.length>1)return{k:'h',a:hls.audioTracks.map(t=>[t.name,t.lang]),c:hls.audioTrack};
+ if(dash)try{const t=dash.getTracksFor('audio');if(t.length>1){const c=dash.getCurrentTrackFor('audio');
+  return{k:'d',t,a:t.map(x=>[x.labels&&x.labels[0]?x.labels[0].text:'',x.lang]),c:t.findIndex(x=>x===c||(x.index!=null&&x.index===c.index))}}}catch{}
+ const n=v.audioTracks;if(n&&n.length>1){const t=Array.from(n);return{k:'n',a:t.map(x=>[x.label,x.language]),c:t.findIndex(x=>x.enabled)}}
+ return null}
+function audUI(){let s=null;try{s=audSrc()}catch{}
+ const n=s?audName(s.a[s.c]||s.a[0],Math.max(0,s.c)):'';
+ $('#aub').hidden=!s;$('#aub').textContent=n.slice(0,12);$('#acur').textContent=s?n+' ('+s.a.length+' tracks)':'Only default'}
+function setAud(i){const s=audSrc();if(!s)return;
+ if(s.k==='h')hls.audioTrack=i;else if(s.k==='d')dash.setCurrentTrack(s.t[i]);else Array.from(v.audioTracks).forEach((t,j)=>t.enabled=j===i);
+ say('Audio: '+audName(s.a[i],i),3000);setTimeout(audUI,400)}
+function audMenu(){$('#set').hidden=true;const s=audSrc();
+ if(!s)return say('No other audio track found in this video',4000);
+ $('#qm').innerHTML='<div class="mh">Audio</div>'+s.a.map((x,i)=>`<button data-a="${i}"${i==s.c?' class="on"':''}>${esc(audName(x,i))}</button>`).join('');$('#qm').hidden=false}
+const cycAud=()=>{const s=audSrc();s?setAud((s.c+1)%s.a.length):say('No other audio track in this video',3000)};
+['#aud','#aub'].forEach(s=>{const e=$(s);if(e)e.onclick=audMenu});
+v.addEventListener('loadedmetadata',audUI);v.audioTracks?.addEventListener?.('addtrack',audUI);
+$('#qm').onclick=e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;
+ if(d.a!=null){setAud(+d.a);$('#qm').hidden=true;return}
+ if(d.add){$('#qm').hidden=true;return addQ()}
+ q.value=d.v;q.onchange();renderQ();$('#qm').hidden=true};
+$('#qb').onclick=()=>{$('#set').hidden=true;renderQ();$('#qm').hidden=!$('#qm').hidden};
+$('#qs').onclick=()=>{$('#set').hidden=true;renderQ();$('#qm').hidden=false};
+/* ===== END FIX BLOCK 1 ===== */
 
 if(/[?&](u|url|link|src|video)=/.test(location.search)){$('#url').value=location.href;start()}
 </script></body></html>
