@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prism Player</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dashjs/4.7.4/dash.all.min.js"></script>
+<style>
+:root{--bg:#10131f;--panel:#181d2f;--line:#2a3150;--tx:#e9ecf7;--mut:#8f98b8;--ac:#f5b83d}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 "Segoe UI",Inter,system-ui,sans-serif;padding:20px;display:flex;justify-content:center}
+.wrap{width:100%;max-width:960px}
+h1{font-size:20px;margin:0 0 14px;font-weight:700}
+#stage{position:relative;background:#000;border-radius:10px;overflow:hidden;aspect-ratio:16/9}
+#stage.drag{outline:2px dashed var(--ac)}
+video{width:100%;height:100%;display:block}
+#msg{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:#000c;padding:6px 14px;border-radius:20px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90%}
+#ctl{position:absolute;inset:auto 0 0 0;padding:30px 12px 8px;background:linear-gradient(transparent,#000d);transition:opacity .25s}
+#stage.idle #ctl{opacity:0}#stage.idle{cursor:none}
+#bar{height:6px;background:#fff3;border-radius:3px;cursor:pointer;position:relative;margin-bottom:8px}
+#buf,#prog{position:absolute;inset:0 auto 0 0;border-radius:3px;width:0}
+#buf{background:#fff5}#prog{background:var(--ac)}
+.row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.sp{flex:1}
+button,select{background:#ffffff1a;color:var(--tx);border:0;border-radius:6px;padding:6px 10px;font:inherit;cursor:pointer}
+button:hover,select:hover{background:#ffffff33}
+button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--ac)}
+select option{background:var(--panel)}
+input[type=range]{width:80px;accent-color:var(--ac)}
+#tm{color:var(--mut);font-variant-numeric:tabular-nums;margin-left:4px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:14px}
+.panel .row{margin-bottom:8px}
+input[type=text],textarea{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--tx);border-radius:6px;padding:8px 10px;font:inherit}
+#url{flex:1;min-width:200px;width:auto}
+textarea{min-height:70px;resize:vertical;font-family:Consolas,monospace;font-size:13px}
+.go{background:var(--ac);color:#1a1405;font-weight:700}.go:hover{background:#ffc95c}
+summary{cursor:pointer;color:var(--mut);margin:4px 0 8px}
+.hint{color:var(--mut);font-size:13px;margin:8px 0 0}
+[hidden]{display:none!important}
+#empty{position:absolute;inset:0;display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;color:var(--mut);text-align:center;padding:10px}
+#set{position:absolute;right:12px;bottom:64px;width:350px;max-height:calc(100% - 76px);background:var(--panel);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;z-index:3;box-shadow:0 14px 36px #000a}
+#set label{display:flex;justify-content:space-between;align-items:center;gap:10px}
+#set input[type=range]{width:130px}
+#gear svg{display:block}
+#tip{position:absolute;bottom:12px;transform:translateX(-50%);background:#000d;padding:2px 6px;border-radius:4px;font-size:12px;display:none;pointer-events:none}
+#stats{position:absolute;left:12px;top:12px;background:#000b;padding:8px 10px;border-radius:8px;font:12px/1.5 Consolas,monospace;white-space:pre;z-index:2}
+#bd{color:var(--ac);font-size:12px;margin-left:6px}
+#set .row{margin:0}#pl{max-height:110px;overflow:auto}#pl button{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#stage{touch-action:pan-y;-webkit-user-select:none;user-select:none}
+#ttl{position:absolute;top:0;left:0;right:0;padding:12px 14px 26px;background:linear-gradient(#000a,transparent);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:opacity .25s;pointer-events:none}
+#stage.idle #ttl{opacity:0}#stats{top:48px!important}
+#spin{position:absolute;top:50%;left:50%;width:44px;height:44px;margin:-22px;border:4px solid #fff3;border-top-color:var(--ac);border-radius:50%;animation:r 1s linear infinite;pointer-events:none}
+@keyframes r{to{transform:rotate(360deg)}}
+#qm{position:absolute;right:56px;bottom:64px;min-width:190px;max-height:calc(100% - 76px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px;z-index:3;display:grid;gap:2px}
+#qm button{text-align:left;background:none}#qm button:hover{background:#ffffff1a}#qm button.on{background:#f5b83d26;color:var(--ac);font-weight:600}
+#qb{min-width:64px;font-weight:600}
+@media(max-width:640px){
+ body{padding:0}h1{padding:10px 14px;margin:0;font-size:17px}#stage{border-radius:0}.panel{margin:12px}
+ #bk,#fw,#vol,#of,#bd{display:none}button,select{min-height:38px}#tm{font-size:12px}
+ #set,#qm{position:fixed;left:8px;right:8px;bottom:8px;top:auto;width:auto;max-height:62vh}}
+#ctl button{display:inline-flex;align-items:center;justify-content:center;height:38px;min-width:38px;padding:0 9px;border-radius:8px}
+#ctl svg,#set svg{width:20px;height:20px;display:block;flex:none}
+#ctl .row{gap:2px}#tm{margin:0 6px;white-space:nowrap}
+#set .sh{display:flex;justify-content:space-between;align-items:center;padding:10px 12px 6px 16px;font-size:15px}
+#set .sh button{min-width:34px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;background:none}
+#set .tabs{display:flex;gap:2px;padding:0 12px;border-bottom:1px solid var(--line)}
+#set .tab{background:none;border-radius:6px 6px 0 0;color:var(--mut);padding:8px 12px}
+#set .tab.on{color:var(--tx);box-shadow:inset 0 -2px var(--ac)}
+#set .body{overflow:auto;padding:2px 16px 10px;flex:1}
+#set .it{padding:11px 0;border-bottom:1px solid var(--line);gap:14px}
+#set .it small{display:block;color:var(--mut);font-size:12px;font-weight:400}
+#set .gh{color:var(--ac);font-weight:600;font-size:13px;margin:16px 0 0}
+#set .bt,#set .dots{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+#set .dot{width:24px;height:24px;min-width:0;min-height:0;padding:0;border-radius:50%;border:2px solid transparent}
+#set .dot.on{border-color:#fff;box-shadow:0 0 0 2px var(--panel) inset}
+#set .sf{padding:10px 16px;border-top:1px solid var(--line);display:flex;justify-content:flex-end}
+.tg{appearance:none;-webkit-appearance:none;width:40px;height:22px;border-radius:11px;background:#ffffff33;position:relative;cursor:pointer;flex:none;transition:background .15s}
+.tg::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s}
+.tg:checked{background:var(--ac)}.tg:checked::after{transform:translateX(18px);background:#1a1405}
+#qm .mh{padding:6px 10px;color:var(--mut);font-size:12px}
+#qm button{display:flex;justify-content:space-between}#qm button.on::after{content:"✓"}
+</style></head>
+<body><div class="wrap">
+<h1>Prism Player</h1>
+<div id="stage">
+ <video id="v" playsinline preload="metadata"></video>
+ <div id="msg"></div>
+ <div id="ttl"></div><div id="spin" hidden></div><div id="qm" hidden></div>
+ <div id="stats" hidden></div>
+ <div id="empty"><div class="row" style="justify-content:center"><button id="ob" class="go">Open from device</button><button id="pb2">Paste link</button></div><span>or press Ctrl+V to paste a link</span></div>
+ <div id="set" hidden>
+  <div class="sh"><b>Settings</b><button id="sx" title="Close"></button></div>
+  <div class="tabs"><button class="tab on" data-t="g">General</button><button class="tab" data-t="p">Picture</button><button class="tab" data-t="c">Customize</button></div>
+  <div class="body">
+   <div class="pane" data-p="g">
+    <label class="it"><span>Playback speed</span><select id="sp"></select></label>
+    <label class="it"><span>Start quality<small>For links that offer several qualities</small></span><select data-k="qstart"><option value="0">Highest</option><option value="1080">Up to 1080p</option><option value="720">Up to 720p</option><option value="480">Up to 480p</option></select></label>
+    <label class="it"><span>Resume<small>Continue where you stopped</small></span><input type="checkbox" class="tg" data-k="resume"></label>
+    <label class="it"><span>Loop video</span><input type="checkbox" class="tg" data-k="loop"></label>
+    <div class="gh">Audio and subtitles</div>
+    <label class="it"><span>Volume boost<small>Files opened from your device</small></span><input id="boost" type="range" min="100" max="300" value="100"></label>
+    <div class="it"><span>Subtitles<small>.srt or .vtt file</small></span><button id="subb">Add file</button></div>
+    <label class="it"><span>Subtitle delay</span><input id="sd" type="range" min="-5" max="5" step=".5" value="0"></label>
+   </div>
+   <div class="pane" data-p="p" hidden>
+    <label class="it"><span>Picture mode</span><select data-k="fit"><option value="contain">Fit</option><option value="cover">Fill screen</option><option value="fill">Stretch</option></select></label>
+    <label class="it"><span>Zoom<small>Pinch, or Ctrl + scroll</small></span><input id="zm" type="range" min="100" max="500" value="100"></label>
+    <div class="it"><span>Orientation</span><span class="bt"><button id="rot">Rotate</button><button id="flp">Flip</button></span></div>
+   </div>
+   <div class="pane" data-p="c" hidden>
+    <div class="gh">Appearance</div>
+    <div class="it"><span>Accent colour</span><span class="dots"><button class="dot" data-c="#f5b83d" style="background:#f5b83d"></button><button class="dot" data-c="#ff6b6b" style="background:#ff6b6b"></button><button class="dot" data-c="#3dd9a0" style="background:#3dd9a0"></button><button class="dot" data-c="#4cb4ff" style="background:#4cb4ff"></button><button class="dot" data-c="#a78bfa" style="background:#a78bfa"></button></span></div>
+    <label class="it"><span>Title bar</span><input type="checkbox" class="tg" data-k="ttl"></label>
+    <div class="gh">Controls</div>
+    <label class="it"><span>Skip step</span><select data-k="step"><option value="5">5 s</option><option value="10">10 s</option><option value="15">15 s</option><option value="30">30 s</option></select></label>
+    <label class="it"><span>Hide controls after</span><select data-k="hide"><option value="1500">1.5 s</option><option value="2500">2.5 s</option><option value="5000">5 s</option><option value="999999">Never</option></select></label>
+    <div class="gh">Video filters</div>
+    <label class="it"><span>Brightness</span><input type="range" data-k="br" min="50" max="150"></label>
+    <label class="it"><span>Contrast</span><input type="range" data-k="co" min="50" max="150"></label>
+    <label class="it"><span>Saturation</span><input type="range" data-k="sa" min="0" max="200"></label>
+    <div class="gh">Tools</div>
+    <label class="it"><span>Sleep timer</span><select id="sleep"><option value="0">Off</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">60 min</option><option value="90">90 min</option></select></label>
+    <div class="it"><span class="bt"><button id="ab">A–B loop</button><button id="shot">Screenshot</button><button id="sts">Stats</button></span></div>
+   </div>
+  </div>
+  <div class="sf"><button id="rst">Reset all</button></div>
+  <input id="sub" type="file" accept=".vtt,.srt" hidden>
+ </div>
+ <div id="ctl">
+  <div id="bar"><div id="buf"></div><div id="prog"></div><span id="tip"></span></div>
+  <div class="row">
+   <button id="pp" title="Play / pause (space)">▶</button>
+   <button id="bk" title="Back 10s (j)">−10s</button>
+   <button id="fw" title="Forward 10s (l)">+10s</button>
+   <button id="mt" title="Mute (m)"></button>
+   <input id="vol" type="range" min="0" max="1" step=".05" value="1" title="Volume">
+   <span id="tm">0:00 / 0:00</span><span id="bd" title="Video size"></span><span class="sp"></span>
+   <button id="qb" title="Quality">Auto</button><select id="q" hidden><option>Auto</option></select>
+   <button id="of" title="Open a file from your device">Open</button>
+   <button id="pip" title="Picture in picture (p)"></button>
+   <button id="gear" title="Settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+   <button id="fs" title="Fullscreen (f)">⛶</button>
+  </div>
+ </div>
+</div>
+
+<div class="panel">
+ <div class="row">
+  <input id="url" type="text" placeholder="Paste a video link here, or press Ctrl+V anywhere">
+  <button id="pb" title="Paste link from clipboard"></button><button id="play" class="go">Play</button>
+  <label><button onclick="file.click()">Open file</button><input id="file" type="file" accept="video/*,audio/*,.mkv" multiple hidden></label>
+ </div>
+ <div id="pl" class="row" hidden></div>
+ <textarea id="list" hidden></textarea>
+ <div class="row">
+  <button id="dl">Download (IDM)</button>
+  <button id="cp">Copy link for IDM</button>
+ </div>
+ <p class="hint">MP4 and WebM play straight from their link, so IDM shows its “Download this video” bar. For .m3u8 streams, use Copy link and paste it in IDM. Files opened from your device cannot be downloaded. Shortcuts: space, ←/→ 5s, j/l 10s, ↑/↓ volume, m mute, f fullscreen, p PiP, &lt; &gt; speed, comma and period for frames, n/b next/previous. No sound on a file usually means an AC3/DTS audio track: convert it with <code>ffmpeg -i in.mkv -c:v copy -c:a aac out.mp4</code>.</p>
+</div></div>
+
+<script>
+const $=s=>document.querySelector(s),v=$('#v'),q=$('#q'),st=$('#stage'),SP=[.25,.5,.75,1,1.25,1.5,2,3];
+let hls=null,dash=null,srcs=[],curUrl='',idle,lastSave=0;
+const fmt=t=>{if(!isFinite(t))return'0:00';t=~~t;const h=~~(t/3600),m=~~(t%3600/60),s=t%60;return(h?h+':'+String(m).padStart(2,'0'):m)+':'+String(s).padStart(2,'0')};
+const say=(m,ms=2500)=>{const e=$('#msg');e.textContent=m;e.style.opacity=1;clearTimeout(say.t);say.t=setTimeout(()=>e.style.opacity=0,ms)};
+const rs=u=>{try{return+localStorage['p:'+u.split('?')[0]]||0}catch{return 0}};
+const setQ=(items,sel)=>{q.innerHTML='';items.forEach(([l,x])=>q.add(new Option(l,x)));q.value=sel;renderQ()};
+SP.forEach(x=>$('#sp').add(new Option(x+'x',x)));$('#sp').value=1;
+
+const b64=s=>{try{s=s.replace(/ /g,'+').replace(/-/g,'+').replace(/_/g,'/');s+='='.repeat((4-s.length%4)%4);return new TextDecoder().decode(Uint8Array.from(atob(s),c=>c.charCodeAt(0)))}catch{return''}};
+function parseLink(s){
+ s=s.trim();const o={url:s},H=/^https?:\/\//i;
+ try{const u=new URL(s);
+  for(const k of['u','url','link','src','video']){const x=u.searchParams.get(k);if(!x)continue;
+   const d=H.test(x)?x:b64(x);
+   if(H.test(d)){o.url=d;const m=b64(u.searchParams.get('m')||''),n=b64(u.searchParams.get('t')||'');
+    if(/^(video|audio)\//.test(m))o.type=/matro/i.test(m)?'video/x-matroska':m;if(n)o.title=n;break}}
+ }catch{}
+ if(o.url===s&&/^[A-Za-z0-9+\/_-]{20,}={0,2}$/.test(s)){const d=b64(s);if(H.test(d))o.url=d}
+ try{o.h=qh(o.title||decodeURIComponent(new URL(o.url).pathname))}catch{}
+ if(o.h)o.q=o.h>=4320?'8K':o.h>=2160?'4K':o.h+'p';
+ return o}
+function load(url,t=0,auto=true,type=''){
+ if(hls){hls.destroy();hls=null}if(dash){dash.reset();dash=null}
+ curUrl=url;$('#empty').hidden=true;if(ac&&!/^blob:/.test(url))say('After volume boost, web links may play silent. Reload the page',5000);
+ const go=()=>{if(t>5)v.currentTime=t;if(auto)v.play().catch(()=>{})};
+ if(/\.m3u8(\?|#|$)/i.test(url)&&window.Hls&&Hls.isSupported()){
+  hls=new Hls({capLevelToPlayerSize:false,maxBufferLength:60,abrEwmaDefaultEstimate:2e7});hls.loadSource(url);hls.attachMedia(v);
+  hls.on(Hls.Events.MANIFEST_PARSED,(e,d)=>{
+   {const c=+S.qstart;if(c){let k=-1;d.levels.forEach((l,i)=>{if(l.height&&l.height<=c)k=i});hls.autoLevelCapping=k}}
+   setQ([['Auto',-1],...d.levels.map((l,i)=>[l.height?(l.height>=2160?'4K · ':'')+l.height+'p':Math.round(l.bitrate/1e3)+'k',i]).reverse()],-1);go()});
+  hls.on(Hls.Events.LEVEL_SWITCHED,(e,d)=>{if(q.value==-1)$('#qb').textContent='Auto · '+(hls.levels[d.level].height||'?')+'p'});
+  hls.on(Hls.Events.ERROR,(e,d)=>d.fatal&&say('Stream error: '+d.details));
+ }else if(/\.mpd(\?|#|$)/i.test(url)&&window.dashjs){
+  dash=dashjs.MediaPlayer().create();dash.initialize(v,url,auto);
+  dash.on('streamInitialized',()=>{const b=dash.getBitrateInfoListFor('video');if(t>5)v.currentTime=t;
+   setQ([['Auto',-1],...b.map((x,i)=>[(x.height>=2160?'4K · ':'')+x.height+'p',i]).reverse()],-1)});
+ }else{v.querySelectorAll('source').forEach(x=>x.remove());
+  if(type&&v.canPlayType(type)){v.removeAttribute('src');const x=document.createElement('source');x.src=url;x.type=type;v.append(x);v.load()}else v.src=url;
+  v.addEventListener('loadedmetadata',go,{once:true})}
+}
+function start(){
+ const u=$('#url').value.trim();
+ srcs=$('#list').value.split('\n').map(s=>s.trim()).filter(Boolean).map((l,i)=>{const k=l.indexOf('|'),o=parseLink(k>0?l.slice(k+1):l),n=k>0?l.slice(0,k).trim():'';return{...o,n:n||o.q||'Source '+(i+1),h:qh(n)||o.h||0}});
+ if(!srcs.length&&u)srcs=(o=>[{...o,n:o.q||'Original',h:o.h||0}])(parseLink(u));
+ if(!srcs.length)return say('Paste a video link first');
+ srcs.sort((a,b)=>b.h-a.h);const si=pickStart(),f=srcs[si];$('#ttl').textContent=f.title||'';
+ if(!(srcs.length==1&&/\.m3u8/i.test(f.url)))setQ(srcs.map((s,i)=>[s.n,i]),si);
+ if(f.title){document.title=f.title+' · Prism Player';say(f.title,4000)}
+ load(f.url,S.resume?rs(f.url):0,true,f.type);
+ if(srcs.length==1)findSiblings(f);
+}
+function openFile(f){if(!f)return;srcs=[{n:f.name,url:URL.createObjectURL(f)}];setQ([[f.name.slice(0,22),0]],0);load(srcs[0].url)}
+$('#play').onclick=start;$('#url').onkeydown=e=>e.key=='Enter'&&start();
+$('#file').onchange=e=>openFiles(e.target.files);
+st.ondragover=e=>{e.preventDefault();st.classList.add('drag')};st.ondragleave=()=>st.classList.remove('drag');
+st.ondrop=e=>{e.preventDefault();st.classList.remove('drag');e.dataTransfer.files.length?openFiles(e.dataTransfer.files):pasteGo(e.dataTransfer.getData('text'))};
+
+q.onchange=()=>{
+ if(hls){hls.currentLevel=+q.value;say(q.selectedOptions[0].text)}
+ else if(dash){const x=+q.value;dash.updateSettings({streaming:{abr:{autoSwitchBitrate:{video:x<0}}}});if(x>=0)dash.setQualityFor('video',x)}
+ else{const t=v.currentTime,p=!v.paused;load(srcs[+q.value].url,t,p,srcs[+q.value].type);say('Quality: '+q.selectedOptions[0].text)}
+};
+const tog=()=>v.paused?v.play():v.pause();
+const vol=d=>{v.volume=Math.min(1,Math.max(0,v.volume+d));$('#vol').value=v.volume;say('Volume '+Math.round(v.volume*100)+'%')};
+const spd=d=>{const i=Math.min(SP.length-1,Math.max(0,SP.indexOf(v.playbackRate)+d));v.playbackRate=SP[i];$('#sp').value=SP[i];say(SP[i]+'x')};
+const fs=()=>{if(document.fullscreenElement)return document.exitFullscreen();if(st.requestFullscreen)st.requestFullscreen().then(()=>screen.orientation?.lock?.('landscape').catch(()=>{})).catch(()=>{});else v.webkitEnterFullscreen?.()};
+const pip=()=>document.pictureInPictureElement?document.exitPictureInPicture():v.requestPictureInPicture?.();
+$('#pp').onclick=tog;v.onclick=()=>moved?moved=false:tog();
+v.onplay=v.onpause=()=>$('#pp').innerHTML=v.paused?PL:PA;
+v.onerror=()=>say(/^blob:/.test(curUrl)?"Browser can't play this file format. Try MP4 or WebM":'Cannot play this link (format or CORS issue)');
+$('#bk').onclick=()=>v.currentTime-=+S.step;$('#fw').onclick=()=>v.currentTime+=+S.step;
+$('#vol').oninput=e=>{v.muted=false;v.volume=e.target.value};
+$('#sp').onchange=e=>v.playbackRate=+e.target.value;
+$('#fs').onclick=fs;$('#pip').onclick=pip;v.ondblclick=e=>{const r=v.getBoundingClientRect(),x=(e.clientX-r.left)/r.width;x<.3?(v.currentTime-=+S.step,say('−'+S.step+'s')):x>.7?(v.currentTime+=+S.step,say('+'+S.step+'s')):fs()};
+v.ontimeupdate=()=>{
+ const d=v.duration||0;if(B!==null&&B>A&&v.currentTime>=B)v.currentTime=A;
+ $('#prog').style.width=d?v.currentTime/d*100+'%':0;
+ $('#tm').textContent=fmt(v.currentTime)+' / '+fmt(d);
+ if(S.resume&&/^http/.test(curUrl)&&Date.now()-lastSave>3000){lastSave=Date.now();try{localStorage['p:'+curUrl.split('?')[0]]=v.currentTime}catch{}}
+};
+v.onprogress=()=>{const b=v.buffered,d=v.duration;if(!b.length||!d)return;for(let i=0;i<b.length;i++)if(v.currentTime>=b.start(i)&&v.currentTime<=b.end(i)+1)$('#buf').style.width=b.end(i)/d*100+'%'};
+const seek=e=>{const r=$('#bar').getBoundingClientRect();v.currentTime=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width))*v.duration};
+$('#bar').onpointerdown=e=>{seek(e);const up=()=>{removeEventListener('pointermove',seek);removeEventListener('pointerup',up)};addEventListener('pointermove',seek);addEventListener('pointerup',up)};
+st.onmousemove=()=>{st.classList.remove('idle');clearTimeout(idle);idle=setTimeout(()=>!v.paused&&$('#set').hidden&&$('#qm').hidden&&st.classList.add('idle'),+S.hide)};
+
+$('#dl').onclick=()=>{
+ if(!/^https?:/.test(curUrl))return say('Needs a direct http(s) link');
+ const a=document.createElement('a');a.href=curUrl;a.download='';document.body.append(a);a.click();a.remove()};
+$('#cp').onclick=async()=>{
+ if(!curUrl)return say('Play something first');
+ try{await navigator.clipboard.writeText(curUrl);say('Link copied. In IDM choose Add URL and paste')}
+ catch{prompt('Copy this link:',curUrl)}};
+
+addEventListener('keydown',e=>{
+ if(e.ctrlKey||e.metaKey||e.altKey)return;
+ if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)&&e.target.type!=='range')return;
+ const f={' ':tog,k:tog,ArrowRight:()=>v.currentTime+=5,ArrowLeft:()=>v.currentTime-=5,l:()=>v.currentTime+=+S.step,j:()=>v.currentTime-=+S.step,
+  Escape:()=>{$('#set').hidden=true;$('#qm').hidden=true},'+':()=>zoomTo(Z*1.25),'=':()=>zoomTo(Z*1.25),'-':()=>zoomTo(Z/1.25),'0':()=>zoomTo(1),',':()=>{v.pause();v.currentTime-=1/30},'.':()=>{v.pause();v.currentTime+=1/30},n:()=>pl.length>1&&playIdx(pi+1),b:()=>pl.length>1&&playIdx(pi-1),ArrowUp:()=>vol(.05),ArrowDown:()=>vol(-.05),m:()=>v.muted=!v.muted,f:fs,p:pip,'>':()=>spd(1),'<':()=>spd(-1)}[e.key];
+ if(f){e.preventDefault();f()}});
+
+const D={ac:'#f5b83d',step:'10',hide:'2500',ttl:true,qstart:'0',fit:'contain',br:100,co:100,sa:100,loop:false,resume:true};
+const S={...D,...(()=>{try{return JSON.parse(localStorage.prism)}catch{return{}}})()};
+function applyS(){
+ document.documentElement.style.setProperty('--ac',S.ac);$('#ttl').style.display=S.ttl?'':'none';
+ document.querySelectorAll('.dot').forEach(d=>d.classList.toggle('on',d.dataset.c==S.ac));
+ $('#bk').title='Back '+S.step+'s (j)';$('#fw').title='Forward '+S.step+'s (l)';
+ v.style.objectFit=S.fit;v.style.filter=`brightness(${S.br}%) contrast(${S.co}%) saturate(${S.sa}%)`;v.loop=S.loop;
+ document.querySelectorAll('[data-k]').forEach(e=>{const x=S[e.dataset.k];e.type=='checkbox'?e.checked=x:e.value=x});
+ try{localStorage.prism=JSON.stringify(S)}catch{}
+}
+document.querySelectorAll('[data-k]').forEach(e=>e.oninput=()=>{S[e.dataset.k]=e.type=='checkbox'?e.checked:e.type=='range'?+e.value:e.value;applyS()});
+$('#rst').onclick=()=>{Object.assign(S,D);applyS()};
+$('#gear').onclick=()=>{$('#qm').hidden=true;$('#set').hidden=!$('#set').hidden};
+$('#ob').onclick=$('#of').onclick=()=>$('#file').click();
+$('#subb').onclick=()=>$('#sub').click();
+$('#sub').onchange=async e=>{
+ const f=e.target.files[0];if(!f)return;let t=await f.text();
+ if(!/^\uFEFF?WEBVTT/.test(t))t='WEBVTT\n\n'+t.replace(/\r/g,'').replace(/(\d\d:\d\d:\d\d),(\d{3})/g,'$1.$2');
+ v.querySelectorAll('track').forEach(x=>x.remove());
+ const k=document.createElement('track');k.kind='subtitles';k.label=f.name;
+ k.src=URL.createObjectURL(new Blob([t],{type:'text/vtt'}));k.default=true;v.append(k);k.track.mode='showing';
+ sdel=0;$('#sd').value=0;say('Subtitles added: '+f.name);e.target.value=''};
+applyS();
+
+const ic=p=>`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+const SPK='<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>';
+const I={on:ic(SPK+'<path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/>'),off:ic(SPK+'<line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>')};
+$('#pip').innerHTML=ic('<rect x="2" y="4" width="20" height="16" rx="2"/><rect x="12" y="12" width="8" height="6" rx="1" fill="currentColor"/>');
+v.onvolumechange=()=>{const m=v.muted||!v.volume;$('#mt').innerHTML=m?I.off:I.on;$('#vol').value=m?0:v.volume};
+$('#mt').onclick=()=>v.muted=!v.muted;v.onvolumechange();
+let chk;v.onplaying=()=>{clearTimeout(chk);chk=setTimeout(()=>{
+ if(v.paused||v.muted||!v.volume)return;
+ if(v.webkitAudioDecodedByteCount===0||v.mozHasAudio===false||(v.audioTracks&&!v.audioTracks.length))
+  say("No sound: this audio codec (AC3/DTS) isn't supported by browsers. Convert audio to AAC",8000)},2500)};
+let ac,gn;
+$('#boost').oninput=e=>{const x=+e.target.value/100;
+ if(x>1&&!/^blob:/.test(curUrl)){e.target.value=100;return say('Boost works for files opened from your device')}
+ if(!ac&&x>1){ac=new AudioContext();gn=ac.createGain();ac.createMediaElementSource(v).connect(gn);gn.connect(ac.destination)}
+ if(gn){gn.gain.value=x;ac.resume()}say('Boost '+e.target.value+'%')};
+let A=null,B=null;
+$('#ab').onclick=()=>{if(A===null){A=v.currentTime;say('A at '+fmt(A))}else if(B===null){B=v.currentTime;say('Looping A–B')}else{A=B=null;say('A–B loop off')}};
+$('#shot').onclick=()=>{if(!v.videoWidth)return say('Play something first');
+ const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;c.getContext('2d').drawImage(v,0,0);
+ try{c.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='shot-'+fmt(v.currentTime).replace(/:/g,'-')+'.png';a.click();say('Screenshot saved')})}
+ catch{say('Blocked: this web link does not allow screenshots')}};
+let rot=0,flip=1;
+let Z=1,PX=0,PY=0;
+const xf=()=>{v.style.transform=`translate(${PX}px,${PY}px) scale(${Z}) rotate(${rot}deg) scale(${rot%180?st.clientHeight/st.clientWidth:1}) scaleX(${flip})`;$('#zm').value=Z*100};
+$('#rot').onclick=()=>{rot=(rot+90)%360;xf()};$('#flp').onclick=()=>{flip*=-1;xf()};addEventListener('resize',xf);
+let sl;$('#sleep').onchange=e=>{clearTimeout(sl);const m=+e.target.value;if(m){sl=setTimeout(()=>{v.pause();say('Sleep timer: paused',5000)},m*6e4);say('Sleep in '+m+' min')}};
+let sdel=0;$('#sd').oninput=e=>{const n=+e.target.value,d=n-sdel,k=v.textTracks[0];sdel=n;
+ if(!k||!k.cues)return say('Add subtitles first');[...k.cues].forEach(c=>{c.startTime+=d;c.endTime+=d});say('Subtitle delay '+n+'s')};
+$('#sts').onclick=()=>$('#stats').hidden=!$('#stats').hidden;
+const cs=x=>v.canPlayType(x)?'yes':'no';
+setInterval(()=>{if($('#stats').hidden)return;const o=v.getVideoPlaybackQuality?.()||{};
+ $('#stats').textContent=`Size ${v.videoWidth}x${v.videoHeight}\nDropped frames ${o.droppedVideoFrames||0} of ${o.totalVideoFrames||0}\nSpeed ${v.playbackRate}x   Volume ${Math.round(v.volume*100)}%\nBrowser decodes:\nH.264 ${cs('video/mp4; codecs="avc1.640033"')}   HEVC ${cs('video/mp4; codecs="hvc1.1.6.L153.B0"')}\nVP9 ${cs('video/webm; codecs="vp09.00.51.08"')}   AV1 ${cs('video/mp4; codecs="av01.0.12M.08"')}`},1000);
+['loadedmetadata','resize'].forEach(n=>v.addEventListener(n,()=>{const h=v.videoHeight;$('#bd').textContent=h?(h>=4320?'8K ':h>=2160?'4K ':'')+v.videoWidth+'×'+h:''}));
+$('#bar').onpointermove=e=>{const r=e.currentTarget.getBoundingClientRect(),f=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),g=$('#tip');g.style.display='block';g.style.left=f*100+'%';g.textContent=fmt(f*(v.duration||0))};
+$('#bar').onpointerleave=()=>$('#tip').style.display='none';
+let pl=[],pi=0;
+function openFiles(fl){pl=[...fl].filter(f=>/^(video|audio)/.test(f.type)||/\.(mkv|mp4|webm|mov|m4v|mp3|m4a)$/i.test(f.name));if(pl.length)playIdx(0)}
+function playIdx(i){pi=(i+pl.length)%pl.length;const f=pl[pi];$('#ttl').textContent=f.name;srcs=[{n:f.name,url:URL.createObjectURL(f)}];setQ([[f.name.slice(0,22),0]],0);load(srcs[0].url);
+ const e=$('#pl');e.hidden=pl.length<2;e.innerHTML=pl.map((x,j)=>`<button data-i="${j}"${j==pi?' class="go"':''}>${x.name.replace(/</g,'&lt;')}</button>`).join('')}
+$('#pl').onclick=e=>{const b=e.target.closest('button');if(b)playIdx(+b.dataset.i)};
+v.onended=()=>pl.length>1&&playIdx(pi+1);
+if('mediaSession' in navigator){const m=navigator.mediaSession,h=(a,f)=>{try{m.setActionHandler(a,f)}catch{}};
+ h('play',()=>v.play());h('pause',()=>v.pause());h('seekbackward',()=>v.currentTime-=10);h('seekforward',()=>v.currentTime+=10);
+ h('nexttrack',()=>pl.length>1&&playIdx(pi+1));h('previoustrack',()=>pl.length>1&&playIdx(pi-1))}
+const qh=s=>{s=String(s||'');const m=/(?:^|[^\d])(2160|1440|1080|720|576|480|360|240)p/i.exec(s);return m?+m[1]:/\b4k\b|\buhd\b/i.test(s)?2160:/\b8k\b/i.test(s)?4320:0};
+const pickStart=()=>{const p=+S.qstart;if(!p||!srcs.some(s=>s.h))return 0;const i=srcs.findIndex(s=>s.h&&s.h<=p);return i<0?srcs.length-1:i};
+function renderQ(){const o=[...q.options];$('#qb').textContent=q.selectedOptions[0]?.text||'Auto';
+ $('#qm').innerHTML='<div class="mh">Quality</div>'+o.map(x=>`<button data-v="${x.value}"${x.value==q.value?' class="on"':''}>${x.text}</button>`).join('')+'<button data-add="1">+ Add quality link</button>'}
+function addQ(){const s=prompt('Paste another quality link (direct or player link)');if(!s)return;
+ if(hls||dash||!srcs.length)return say('Add quality works with normal video links');
+ const c=srcs[+q.value],o=parseLink(s);srcs.push({...o,n:o.q||'Source '+(srcs.length+1),h:o.h||0});srcs.sort((a,b)=>b.h-a.h);
+ setQ(srcs.map((x,i)=>[x.n,i]),srcs.indexOf(c));say('Quality added. Pick it from the menu')}
+$('#qm').onclick=e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.add){$('#qm').hidden=true;return addQ()}q.value=b.dataset.v;q.onchange();renderQ();$('#qm').hidden=true};
+$('#qb').onclick=()=>{$('#set').hidden=true;$('#qm').hidden=!$('#qm').hidden};
+renderQ();
+let moved=false,pd=0;const ptr=new Map();
+const zoomTo=(z,quiet)=>{Z=Math.max(1,Math.min(5,z));if(Z==1)PX=PY=0;const mx=st.clientWidth*(Z-1)/2,my=st.clientHeight*(Z-1)/2;
+ PX=Math.max(-mx,Math.min(mx,PX));PY=Math.max(-my,Math.min(my,PY));st.style.touchAction=Z>1?'none':'pan-y';xf();if(!quiet)say('Zoom '+Math.round(Z*100)+'%')};
+$('#zm').oninput=e=>zoomTo(e.target.value/100,true);
+st.addEventListener('pointerdown',e=>{
+ if(!e.target.closest('#qm,#set,#qb,#gear'))$('#qm').hidden=$('#set').hidden=true;
+ st.onmousemove();
+ if(e.target.closest('#ctl,#set,#qm,#empty,#stats'))return;ptr.set(e.pointerId,e);moved=false;pd=0});
+st.addEventListener('pointermove',e=>{const o=ptr.get(e.pointerId);if(!o)return;ptr.set(e.pointerId,e);
+ if(ptr.size==2){const [a,b]=[...ptr.values()],d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY);if(pd)zoomTo(Z*d/pd,true);pd=d;moved=true}
+ else if(Z>1){const dx=e.clientX-o.clientX,dy=e.clientY-o.clientY;PX+=dx;PY+=dy;zoomTo(Z,true);if(Math.abs(dx)+Math.abs(dy)>2)moved=true}});
+const pend=e=>{ptr.delete(e.pointerId);pd=0};addEventListener('pointerup',pend);addEventListener('pointercancel',pend);
+st.addEventListener('wheel',e=>{if(!e.ctrlKey&&!e.shiftKey)return;e.preventDefault();zoomTo(Z*(e.deltaY<0?1.1:.9),true)},{passive:false});
+['loadstart','waiting'].forEach(n=>v.addEventListener(n,()=>$('#spin').hidden=false));
+['playing','canplay','pause','error'].forEach(n=>v.addEventListener(n,()=>$('#spin').hidden=true));
+const PL=ic('<polygon points="6 4 20 12 6 20 6 4" fill="currentColor"/>'),PA=ic('<rect x="6" y="4" width="4" height="16" fill="currentColor"/><rect x="14" y="4" width="4" height="16" fill="currentColor"/>');
+$('#bk').innerHTML=ic('<path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 3 3 9 9 9"/>');
+$('#fw').innerHTML=ic('<path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/>');
+$('#of').innerHTML=ic('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>');
+$('#fs').innerHTML=ic('<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>');
+$('#sx').innerHTML=ic('<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>');
+$('#pb').innerHTML=ic('<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>');
+v.onpause();
+$('#sx').onclick=()=>$('#set').hidden=true;
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+ document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===b));
+ document.querySelectorAll('.pane').forEach(x=>x.hidden=x.dataset.p!==b.dataset.t)});
+document.querySelectorAll('.dot').forEach(d=>d.onclick=()=>{S.ac=d.dataset.c;applyS()});
+
+const looksLink=s=>/^https?:\/\//i.test(s)||(/^[A-Za-z0-9+\/_=-]{40,}$/.test(s)&&/^https?:\/\//i.test(b64(s)));
+function pasteGo(s){s=(s||'').trim();if(!s)return say('Clipboard is empty');
+ if(!looksLink(s))return say('No video link found in clipboard',3500);
+ $('#url').value=s;$('#set').hidden=true;start()}
+async function pasteBtn(){try{pasteGo(await navigator.clipboard.readText())}catch{$('#url').focus();say('Press Ctrl+V to paste the link',4000)}}
+$('#pb').onclick=$('#pb2').onclick=pasteBtn;
+document.addEventListener('paste',e=>{
+ const f=e.clipboardData&&e.clipboardData.files;if(f&&f.length){e.preventDefault();return openFiles(f)}
+ const s=((e.clipboardData&&e.clipboardData.getData('text'))||'').trim();
+ if(/INPUT|TEXTAREA/.test(e.target.tagName)&&e.target.id!=='url')return;
+ if(!looksLink(s))return;
+ e.preventDefault();pasteGo(s)});
+
+const probe=u=>new Promise(r=>{const x=document.createElement('video');let d=0;
+ const f=ok=>{if(d)return;d=1;x.removeAttribute('src');x.load();r(ok)};
+ x.preload='metadata';x.muted=true;x.onloadedmetadata=()=>f(true);x.onerror=()=>f(false);setTimeout(()=>f(false),7000);x.src=u});
+async function findSiblings(s){
+ let u;try{u=new URL(s.url)}catch{return}
+ if(!s.h||/\.(m3u8|mpd)/i.test(u.pathname)||/^blob:/.test(s.url))return;
+ if(/[?&](x-amz-signature|signature|sig|token|hdnts|expires|policy)=/i.test(u.search))
+  return say('Signed link: only '+s.q+' exists for this file. For more qualities use an HLS or DASH link',6000);
+ const tok=new RegExp('(^|[^\\d])'+s.h+'p','i');
+ const c=[2160,1440,1080,720,480,360].filter(h=>h!==s.h).map(h=>({h,url:u.origin+u.pathname.replace(tok,'$1'+h+'p')+u.search})).filter(x=>x.url!==s.url);
+ if(!c.length)return;
+ say('Looking for 4K, 1080p and other qualities…',3000);
+ const ok=await Promise.all(c.map(x=>probe(x.url))),add=c.filter((x,i)=>ok[i]);
+ if(!srcs.includes(s))return;
+ if(!add.length)return say('Only '+s.q+' found for this link',4000);
+ const cur=srcs[+q.value],L=h=>h>=2160?'4K':h+'p';
+ add.forEach(x=>srcs.push({...s,url:x.url,h:x.h,q:L(x.h),n:L(x.h)}));srcs.sort((a,b)=>b.h-a.h);
+ setQ(srcs.map((x,i)=>[x.n,i]),Math.max(0,srcs.indexOf(cur)));say('Found '+add.map(x=>L(x.h)).join(', ')+'. Open the quality menu',4500)}
+if(/[?&](u|url|link|src|video)=/.test(location.search)){$('#url').value=location.href;start()}
+</script></body></html>
